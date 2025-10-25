@@ -25,7 +25,7 @@ interface Ride {
   total_seats: number;
   available_seats: number;
   cost_per_person: number;
-  driver_id: string;
+  driver_id: string | null;
   profiles: {
     full_name: string;
     rating: number;
@@ -38,9 +38,15 @@ const FindRide = () => {
   const [loading, setLoading] = useState(true);
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
   const [seatsToBook, setSeatsToBook] = useState(1);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestName, setGuestName] = useState("");
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [originFilter, setOriginFilter] = useState<string>("All Locations");
+  const [destinationFilter, setDestinationFilter] = useState<string>("All Locations");
+  const [origins, setOrigins] = useState<string[]>([]);
+  const [destinations, setDestinations] = useState<string[]>([]);
 
   useEffect(() => {
     fetchRides();
@@ -83,7 +89,17 @@ const FindRide = () => {
         .order("departure_time", { ascending: true });
 
       if (error) throw error;
-      setRides(data || []);
+      const list = data || [];
+      setRides(list);
+      // Build unique origin/destination lists
+      const originSet = new Set<string>();
+      const destinationSet = new Set<string>();
+      list.forEach((r) => {
+        if (r.origin) originSet.add(r.origin);
+        if (r.destination) destinationSet.add(r.destination);
+      });
+      setOrigins(["All Locations", ...Array.from(originSet)]);
+      setDestinations(["All Locations", ...Array.from(destinationSet)]);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -95,17 +111,54 @@ const FindRide = () => {
     }
   };
 
+  const generateTempPassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+    let pwd = "";
+    for (let i = 0; i < 14; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    return pwd;
+  };
+
   const handleBooking = async () => {
     if (!selectedRide) return;
     
     if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to request a ride.",
-        variant: "destructive",
-      });
-      navigate("/auth");
-      return;
+      // Guest flow: insert directly without auth using contact info
+      if (!guestEmail) {
+        toast({
+          title: "Email required",
+          description: "Please enter your email to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const { error } = await supabase
+          .from("requests")
+          // Cast to any to bypass TS types generated from the old schema
+          .insert({
+            ride_id: selectedRide.id,
+            passenger_id: null,
+            seats_requested: seatsToBook,
+            contact_email: guestEmail,
+            contact_name: guestName || null,
+          } as any);
+
+        if (error) throw error;
+
+        toast({
+          title: "Request sent!",
+          description: "Your booking request has been sent to the driver.",
+        });
+        setSelectedRide(null);
+        setSeatsToBook(1);
+        setGuestEmail("");
+        setGuestName("");
+        return;
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+        return;
+      }
     }
 
     try {
@@ -133,14 +186,7 @@ const FindRide = () => {
   };
 
   const handleRequestClick = (ride: Ride) => {
-    if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to request a ride.",
-      });
-      navigate("/auth");
-      return;
-    }
+    // Allow guests to request; dialog will collect contact info
     setSelectedRide(ride);
   };
 
@@ -150,35 +196,76 @@ const FindRide = () => {
 
   return (
     <>
+      {/* Filters bar */}
+      <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <Label className="text-gray-700">From</Label>
+            <Select value={originFilter} onValueChange={setOriginFilter}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                {origins.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-gray-700">To</Label>
+            <Select value={destinationFilter} onValueChange={setDestinationFilter}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                {destinations.map((d) => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end md:justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setOriginFilter("All Locations");
+                setDestinationFilter("All Locations");
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="space-y-4">
         {rides.length === 0 ? (
           <div className="text-center py-10 px-6 bg-white rounded-lg shadow-md">
             <p className="text-gray-500">No rides available at the moment.</p>
           </div>
         ) : (
-          rides.map((ride) => {
+          rides
+            .filter((ride) =>
+              (originFilter === "All Locations" || ride.origin === originFilter) &&
+              (destinationFilter === "All Locations" || ride.destination === destinationFilter)
+            )
+            .map((ride) => {
             const departureDate = new Date(ride.departure_time);
             const arrivalDate = new Date(ride.arrival_time);
-            const avgRating = ride.profiles.total_ratings > 0
-              ? (ride.profiles.rating / ride.profiles.total_ratings).toFixed(1)
-              : "New";
+            const seatsText = `${ride.available_seats} of ${ride.total_seats} seats left`;
 
             return (
               <div
                 key={ride.id}
-                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200"
+                className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
               >
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-xl font-bold">
                       {ride.origin} → {ride.destination}
                     </h3>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Driver: {ride.profiles.full_name} ⭐ {avgRating}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {ride.available_seats} of {ride.total_seats} seats left
-                    </p>
+                    <p className="text-sm text-gray-500 mt-2">{seatsText}</p>
                   </div>
                   <div className="text-right flex-shrink-0 ml-4">
                     <div className="text-lg font-semibold">
@@ -193,9 +280,7 @@ const FindRide = () => {
                   </div>
                 </div>
                 <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                  <span className="text-lg font-bold text-green-600">
-                    ${ride.cost_per_person.toFixed(2)} / person
-                  </span>
+                  <span className="text-lg font-bold text-green-600">~${ride.cost_per_person.toFixed(2)} / person</span>
                   <Button onClick={() => handleRequestClick(ride)}>Request</Button>
                 </div>
               </div>
@@ -214,14 +299,33 @@ const FindRide = () => {
                   <p className="mt-2">
                     {selectedRide.origin} → {selectedRide.destination}
                   </p>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Driver: {selectedRide.profiles.full_name}
-                  </p>
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
+            {!user && (
+              <>
+                <Label htmlFor="guestName">Your name</Label>
+                <Input
+                  id="guestName"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="e.g., Alex"
+                  className="mt-2 mb-4"
+                />
+                <Label htmlFor="guestEmail">Contact email</Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="mt-2 mb-4"
+                  required
+                />
+              </>
+            )}
             <Label htmlFor="seats">How many seats?</Label>
             <Input
               id="seats"

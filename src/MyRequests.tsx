@@ -43,6 +43,9 @@ const MyRequests = () => {
       return () => {
         supabase.removeChannel(channel);
       };
+    } else {
+      // In guest mode, nothing to fetch; avoid hanging loaders
+      setLoading(false);
     }
   }, [user]);
 
@@ -78,9 +81,13 @@ const MyRequests = () => {
 
   return (
     <div className="space-y-4">
-      {requests.length === 0 ? (
+      {(!user || requests.length === 0) ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500">You have not requested any rides.</p>
+          <p className="text-gray-500">
+            {user
+              ? "You have not requested any rides."
+              : "Guests don’t have a saved requests list. Your requests are sent to drivers using your contact details."}
+          </p>
         </div>
       ) : (
         requests.map((request) => {

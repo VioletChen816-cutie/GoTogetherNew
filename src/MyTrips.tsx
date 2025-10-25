@@ -23,6 +23,9 @@ const MyTrips = () => {
   useEffect(() => {
     if (user) {
       fetchTrips();
+    } else {
+      // In guest mode, no persisted trips; stop loading
+      setLoading(false);
     }
   }, [user]);
 
@@ -63,9 +66,13 @@ const MyTrips = () => {
 
   return (
     <div className="space-y-4">
-      {trips.length === 0 ? (
+      {(!user || trips.length === 0) ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500">You have no upcoming trips.</p>
+          <p className="text-gray-500">
+            {user
+              ? "You have no upcoming trips."
+              : "Guests don’t have a saved trips list. Approved trips are visible when using an account."}
+          </p>
         </div>
       ) : (
         trips.map((trip) => (

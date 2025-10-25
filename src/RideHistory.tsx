@@ -23,6 +23,9 @@ const RideHistory = () => {
   useEffect(() => {
     if (user) {
       fetchHistory();
+    } else {
+      // In guest mode, no persisted history; stop loading
+      setLoading(false);
     }
   }, [user]);
 
@@ -63,9 +66,13 @@ const RideHistory = () => {
 
   return (
     <div className="space-y-4">
-      {history.length === 0 ? (
+      {(!user || history.length === 0) ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500">You have no past trips.</p>
+          <p className="text-gray-500">
+            {user
+              ? "You have no past trips."
+              : "Guests don’t have a saved trip history. Approved trips appear when using an account."}
+          </p>
         </div>
       ) : (
         history.map((trip) => (

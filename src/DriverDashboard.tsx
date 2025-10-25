@@ -12,6 +12,8 @@ interface Ride {
   total_seats: number;
   available_seats: number;
   cost_per_person: number;
+  // If a ride was created by a guest, driver_id can be null
+  driver_id?: string | null;
 }
 
 interface Request {
@@ -21,6 +23,8 @@ interface Request {
   profiles: {
     full_name: string;
   };
+  contact_email?: string | null;
+  contact_name?: string | null;
 }
 
 const DriverDashboard = () => {
@@ -70,6 +74,9 @@ const DriverDashboard = () => {
         supabase.removeChannel(ridesChannel);
         supabase.removeChannel(requestsChannel);
       };
+    } else {
+      // In guest mode, no driver management data; stop loading
+      setLoading(false);
     }
   }, [user]);
 
@@ -199,9 +206,13 @@ const DriverDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {rides.length === 0 ? (
+      {(!user || rides.length === 0) ? (
         <div className="text-center py-10 px-6 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500">You have not posted any rides.</p>
+          <p className="text-gray-500">
+            {user
+              ? "You have not posted any rides."
+              : "Driver management isn’t available in guest mode. You can still post trips from the Offer a Trip tab."}
+          </p>
         </div>
       ) : (
         rides.map((ride) => {
@@ -240,9 +251,14 @@ const DriverDashboard = () => {
                       key={req.id}
                       className="bg-gray-50 p-3 rounded-lg flex justify-between items-center"
                     >
-                      <p>
-                        {req.profiles.full_name} requested <strong>{req.seats_requested}</strong> seat(s)
-                      </p>
+                      <div>
+                        <p>
+                          {(req.profiles?.full_name || req.contact_name || "Guest")} requested <strong>{req.seats_requested}</strong> seat(s)
+                        </p>
+                        {(!req.profiles?.full_name && req.contact_email) && (
+                          <p className="text-xs text-gray-500">Contact: {req.contact_email}</p>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"

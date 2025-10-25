@@ -16,6 +16,8 @@ const OfferRide = () => {
   const [estArrivalTime, setEstArrivalTime] = useState("");
   const [estFuelCost, setEstFuelCost] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestName, setGuestName] = useState("");
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -44,17 +46,75 @@ const OfferRide = () => {
     setEstFuelCost(`~$${costPerPerson.toFixed(2)}`);
   };
 
+  const generateTempPassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+    let pwd = "";
+    for (let i = 0; i < 14; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    return pwd;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user) {
-      toast({
-        title: "Sign in required",
-        description: "Please sign in to offer a ride.",
-        variant: "destructive",
-      });
-      navigate("/auth");
-      return;
+      // Guest flow: insert directly without auth using contact info
+      if (!guestEmail) {
+        toast({
+          title: "Email required",
+          description: "Please enter your email to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const seatsNum = parseInt(seats);
+        const departureDate = new Date(datetime);
+
+        // Calculate arrival time and cost
+        const mockDistance = (origin.length + destination.length) * 12;
+        const mockDurationMinutes = Math.round((mockDistance / 55) * 60);
+        const arrivalDate = new Date(departureDate.getTime() + mockDurationMinutes * 60000);
+
+        const AVG_MPG = 25;
+        const PRICE_PER_GALLON = 3.85;
+        const totalFuelCost = (mockDistance / AVG_MPG) * PRICE_PER_GALLON;
+        const costPerPerson = totalFuelCost / (seatsNum + 1);
+
+        const { error } = await supabase
+          .from("rides")
+          // Cast to any to bypass TS types generated from the old schema
+          .insert({
+            driver_id: null,
+            origin,
+            destination,
+            departure_time: departureDate.toISOString(),
+            arrival_time: arrivalDate.toISOString(),
+            total_seats: seatsNum,
+            available_seats: seatsNum,
+            cost_per_person: costPerPerson,
+            contact_email: guestEmail,
+            contact_name: guestName || null,
+          } as any);
+
+        if (error) throw error;
+
+        toast({ title: "Trip posted!", description: "Your trip has been posted successfully." });
+
+        // Reset form
+        setOrigin("");
+        setDestination("");
+        setDatetime("");
+        setSeats("");
+        setEstArrivalTime("");
+        setEstFuelCost("");
+        setGuestEmail("");
+        setGuestName("");
+        return;
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+        return;
+      }
     }
 
     setLoading(true);
@@ -115,6 +175,30 @@ const OfferRide = () => {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {!user && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="guestName">Your name</Label>
+                <Input
+                  id="guestName"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="e.g., Alex"
+                />
+              </div>
+              <div>
+                <Label htmlFor="guestEmail">Contact email</Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+            </div>
+          )}
           <div>
             <Label htmlFor="origin">Origin</Label>
             <Input

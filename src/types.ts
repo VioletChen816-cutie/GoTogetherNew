@@ -51,29 +51,35 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          passenger_id: string
+          passenger_id: string | null
           ride_id: string
           seats_requested: number
           status: Database["public"]["Enums"]["request_status"]
           updated_at: string | null
+          contact_email: string | null
+          contact_name: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
-          passenger_id: string
+          passenger_id?: string | null
           ride_id: string
           seats_requested?: number
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
-          passenger_id?: string
+          passenger_id?: string | null
           ride_id?: string
           seats_requested?: number
           status?: Database["public"]["Enums"]["request_status"]
           updated_at?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
         }
         Relationships: [
           {
@@ -100,11 +106,13 @@ export type Database = {
           created_at: string | null
           departure_time: string
           destination: string
-          driver_id: string
+          driver_id: string | null
           id: string
           origin: string
           total_seats: number
           updated_at: string | null
+          contact_email: string | null
+          contact_name: string | null
         }
         Insert: {
           arrival_time: string
@@ -113,11 +121,13 @@ export type Database = {
           created_at?: string | null
           departure_time: string
           destination: string
-          driver_id: string
+          driver_id?: string | null
           id?: string
           origin: string
           total_seats: number
           updated_at?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
         }
         Update: {
           arrival_time?: string
@@ -126,11 +136,13 @@ export type Database = {
           created_at?: string | null
           departure_time?: string
           destination?: string
-          driver_id?: string
+          driver_id?: string | null
           id?: string
           origin?: string
           total_seats?: number
           updated_at?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
         }
         Relationships: [
           {
